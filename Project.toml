@@ -1,0 +1,40 @@
+name = "GrowthFit"
+uuid = "3142d883-df95-4bd5-a657-caf749b3a4ac"
+authors = ["Raj Subedi <you@example.com>"]
+version = "0.1.0"
+
+[deps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
+OptimizationNLopt = "4e6fcdb7-1186-4e1f-a706-475e75c168bb"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[compat]
+ADTypes = "1"
+Aqua = "0.8"
+DifferentialEquations = "7, 8"
+Distributions = "0.25"
+ForwardDiff = "0.10, 1"
+LinearAlgebra = "1"
+Optimization = "5"
+OptimizationNLopt = "0.3"
+Plots = "1"
+Random = "1"
+SpecialFunctions = "2"
+Statistics = "1"
+Test = "1"
+julia = "1.10"
+
+[extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Aqua", "Test"]
