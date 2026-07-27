@@ -25,6 +25,12 @@ using GrowthFit: GrowthModels, FitGrowthModel, BootstrapUncertainty, PlotGrowthF
 
 Random.seed!(123)
 
+# Master seed for the bootstrap. Because run_bootstrap derives one stream per
+# replicate index from this value, the intervals below are reproducible on any
+# machine and at any Threads.nthreads() -- set it to `nothing` to draw a fresh
+# seed from the global RNG on each run instead.
+bootstrap_seed = 20260726
+
 # =============================================================================
 # 1. Load data
 # =============================================================================
@@ -97,7 +103,7 @@ println("Running bootstrap (M=300)...")
 M = 300
 boot = BootstrapUncertainty.run_bootstrap(flag, timevect, ydata, point_fit;
                      dist=dist, M=M, forecast_horizon=forecast_horizon,
-                     n_restarts_boot=1)
+                     n_restarts_boot=1, seed=bootstrap_seed)
 
 println("Successful replicates: $(boot.n_success)/$M")
 

@@ -145,6 +145,34 @@ using Aqua
         @test boot.n_success > 0
     end
 
+    @testset "bootstrap seeding is reproducible" begin
+        timevect = collect(1.0:25.0)
+        ydata = solve_incidence(:lm, 0.35, 1.0, 1.0, 3000.0, 5.0, timevect)
+        res = fit_growth_model(:lm, timevect, ydata; dist = :normal, n_restarts = 3)
+
+        kw = (dist = :normal, M = 8, forecast_horizon = 1, n_restarts_boot = 1)
+
+        # An explicit seed pins the replicates. This holds regardless of
+        # Threads.nthreads(), because each replicate index gets its own
+        # stream derived from the master seed rather than whatever the
+        # @threads chunking hands it.
+        a = run_bootstrap(:lm, timevect, ydata, res; kw..., seed = 42)
+        b = run_bootstrap(:lm, timevect, ydata, res; kw..., seed = 42)
+        @test a.params == b.params
+        @test a.fit_curves == b.fit_curves
+        @test a.forecast_noisy == b.forecast_noisy
+
+        # A different seed gives different replicates.
+        c = run_bootstrap(:lm, timevect, ydata, res; kw..., seed = 43)
+        @test c.params != a.params
+
+        # seed=nothing draws a master seed from the passed rng, so an
+        # upstream Random.seed! still makes the whole run reproducible.
+        Random.seed!(7); d = run_bootstrap(:lm, timevect, ydata, res; kw..., seed = nothing)
+        Random.seed!(7); e = run_bootstrap(:lm, timevect, ydata, res; kw..., seed = nothing)
+        @test d.params == e.params
+    end
+
     @testset "identifiability screen" begin
         timevect = collect(1.0:30.0)
         # EXP has a single free parameter, so collinearity is not applicable.

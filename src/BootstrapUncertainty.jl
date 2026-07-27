@@ -61,7 +61,8 @@ end
 
 """
     run_bootstrap(flag, timevect, ydata, point_fit; dist=:nb1, M=300,
-                  forecast_horizon=0, n_restarts_boot=1, noise_reps=20)
+                  forecast_horizon=0, n_restarts_boot=1, noise_reps=20,
+                  seed=nothing, rng=Random.default_rng())
 
 Run `M` bootstrap replicates. `point_fit` is a `FitResult` from
 `fit_growth_model` on the original data -- each replicate is warm-started
@@ -70,10 +71,40 @@ SLSQP reliably finds the right basin from a good warm start, so heavy
 multistart per replicate is usually unnecessary overhead -- see project
 history where this was identified as a real speedup opportunity that wasn't
 tested in the R version).
+
+## Reproducibility
+
+Replicate `j` draws from its own `Xoshiro` stream, derived deterministically
+from a single master seed. This makes results depend only on that seed --
+NOT on `Threads.nthreads()`.
+
+That independence is the point of the change. Previously each replicate used
+the per-task RNG that `Threads.@threads` hands out, which is thread-SAFE and
+reproducible at a fixed thread count, but `@threads` chunks the loop by
+`nthreads()`, so the streams land on different replicate indices when the
+thread count changes. Measured on the Jalisco GRM/NB1 fit (M=50, same seed):
+the 95% interval for `r` was [0.583, 1.145] on 4 threads and [0.586, 1.084]
+on 8. Reproducible within a run configuration, not across one.
+
+`seed` controls the master seed:
+  * `seed = <Int>` -- fully explicit; the same value always gives the same
+    replicates, on any machine and any thread count. Prefer this when
+    reporting intervals.
+  * `seed = nothing` (default) -- one master seed is drawn from `rng`
+    serially before the loop, so an upstream `Random.seed!(...)` still makes
+    the whole run reproducible, and successive calls in one session differ
+    as you would expect.
+
+`rng` is only ever touched on the main task, before any replicate starts, so
+passing an explicit RNG object is now safe. (It previously was not: an
+`Xoshiro` passed here would have been shared mutable state across threads.
+The default `Random.default_rng()` was safe because it resolves to the
+per-task RNG.)
 """
 function run_bootstrap(flag::Symbol, timevect::AbstractVector, ydata::AbstractVector,
                        point_fit::FitResult; dist::Symbol=:nb1, M::Int=300,
                        forecast_horizon::Int=0, n_restarts_boot::Int=1, noise_reps::Int=20,
+                       seed::Union{Nothing,Integer}=nothing,
                        rng=Random.default_rng())
     I0 = ydata[1]
     n_cal = length(timevect)
@@ -85,14 +116,24 @@ function run_bootstrap(flag::Symbol, timevect::AbstractVector, ydata::AbstractVe
     fit_curves = zeros(n_cal, M)
     forecast_curves = zeros(n_fc, M)
     forecast_noisy_list = Vector{Matrix{Float64}}(undef, M)
-    n_success = 0
+    # Per-replicate success flags rather than a shared counter: `n_success += 1`
+    # inside Threads.@threads is a read-modify-write on one Int from several
+    # threads, so increments can be lost. Count after the loop instead.
+    success = falses(M)
+
+    # One master seed, drawn serially on the main task, then one independent
+    # stream per replicate index. Replicate j always gets stream j, however
+    # @threads happens to chunk the loop.
+    master = seed === nothing ? rand(rng, UInt64) : UInt64(seed)
+    rngs = [Random.Xoshiro(hash((master, j))) for j in 1:M]
 
     Threads.@threads for j in 1:M
-        boot_data = simulate_noisy_curve(point_fit.fitcurve, dist, point_fit.alpha, rng)
+        rng_j = rngs[j]
+        boot_data = simulate_noisy_curve(point_fit.fitcurve, dist, point_fit.alpha, rng_j)
 
         best = fit_growth_model(flag, timevect, boot_data;
                                 dist=dist, alpha0=point_fit.alpha,
-                                n_restarts=n_restarts_boot, rng=rng)
+                                n_restarts=n_restarts_boot, rng=rng_j)
 
         # Fallback to the point estimate if this replicate failed to converge,
         # so one bad replicate doesn't propagate NaNs through the whole matrix
@@ -111,15 +152,14 @@ function run_bootstrap(flag::Symbol, timevect::AbstractVector, ydata::AbstractVe
         noisy = zeros(n_fc, noise_reps)
         for k in 1:noise_reps
             noisy[:, k] = any(!isfinite, curve_full) ? fill(NaN, n_fc) :
-                          simulate_noisy_curve(curve_full, dist, use.alpha, rng)
+                          simulate_noisy_curve(curve_full, dist, use.alpha, rng_j)
         end
         forecast_noisy_list[j] = noisy
 
-        if use.converged
-            n_success += 1
-        end
+        success[j] = use.converged
     end
 
+    n_success = count(success)
     forecast_noisy = hcat(forecast_noisy_list...)
 
     return BootstrapResult(flag, dist, params, fit_curves, forecast_curves,
