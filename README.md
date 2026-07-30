@@ -116,19 +116,42 @@ fit looks good.
 
 ## Known limitations
 
-On noiseless synthetic data with the default wide bounds on `K`
-(`Kmax_mult = 1000`), SLSQP can return its starting point unchanged. The
-cause is gradient scaling — at the warm start the derivative with respect to
-`r` exceeds that with respect to `K` by roughly six orders of magnitude — in
-combination with the flat constant returned by the plausibility guard in
-`negloglik`, which leaves the line search no gradient to backtrack along.
-Automatic differentiation is not implicated (ForwardDiff gradients agree
-with central differences to ~8 significant digits), and a derivative-free
-optimizer recovers the true parameters from the same start.
+**Least-squares (`dist = :normal`) fits are unreliable.** SLSQP can return
+its starting point unchanged, reporting `Success` while doing so, and the
+default multistart does not rescue it. On the bundled Jalisco measles
+example the package's own `:normal` fit reaches SSE 783,938, while a
+derivative-free optimizer finds SSE 83,440 from three independent starts —
+so the reported fit is roughly nine times worse than the optimum the same
+objective admits.
 
-Fits to real (noisy) data are unaffected. A well-scaled search range
-(`Kmax_mult = 2.0`) recovers known parameters to machine precision. This is
-tracked as a `@test_broken` case in `test/runtests.jl`.
+The cause is SLSQP's line search failing when the gradient is large relative
+to the feasible region. At the point where the fit stalls, the scaled
+gradient components are of order 1e6 against an objective of order 1e5, so
+that point is nowhere near stationary — the optimizer simply cannot take a
+step. This is a genuine failure to converge, not a difference in what least
+squares prefers.
+
+Ruled out by testing: automatic differentiation is correct (ForwardDiff
+gradients agree with central differences to ~8 significant digits);
+restart sampling is not the cause (narrowing `Kmax_mult` to 2.0 with 50
+restarts makes the fit *worse*); and log-space reparameterization of `r` and
+`K` also makes it worse. Derivative-free optimization recovers a good
+optimum in every case tested.
+
+**Poisson and NB1 fits are unaffected**, and this has been verified rather
+than assumed: a derivative-free optimizer started from the fitted NB1
+optimum on the Jalisco data returns the identical point to four significant
+figures. Their log-scale objectives are far better conditioned across `r`
+and `K`. If you are fitting count data, `:nb1` is the appropriate default
+anyway.
+
+A related failure appears on noiseless synthetic data with the default wide
+bounds on `K`, and is tracked as a `@test_broken` case in
+`test/runtests.jl`.
+
+**Planned fix (v0.2.0):** polish the SLSQP result with a derivative-free
+COBYLA pass and keep whichever objective is lower. This is a no-op wherever
+SLSQP already reaches the optimum, and costs under 10% of fit time.
 
 ## Citation
 
