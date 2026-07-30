@@ -26,6 +26,10 @@ module Identifiability
 
 using LinearAlgebra, Statistics
 
+# NOTE: `using ..X: a, b` imports only the named symbols -- it does NOT bind
+# the module name itself, so `GrowthModels.something` is a NameError here.
+# Refer to imported names directly, or add `import ..GrowthModels` if a
+# qualified reference is genuinely wanted.
 using ..GrowthModels: growth_rhs!, MODEL_NAMES
 using ..FitGrowthModel: solve_incidence
 
@@ -226,7 +230,7 @@ function screen_all_models(timevect::AbstractVector, ydata::AbstractVector;
         # point for the sensitivity evaluation.
         params0 = (r=0.5, p=0.9, a=1.0, K=min(data_sum, 1e5), I0=I0)
         result = screen_identifiability(flag, timevect, params0; threshold=threshold)
-        model_str = GrowthModels.MODEL_NAMES[flag]
+        model_str = MODEL_NAMES[flag]
         push!(results, merge((model=model_str, flag=flag), result))
 
         status = ismissing(result.identifiable) ? "n/a" :

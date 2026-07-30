@@ -223,4 +223,22 @@ using DelimitedFiles
         @test out_grm.identifiable isa Bool
     end
 
+    @testset "identifiability screen over all models" begin
+        # Regression: screen_all_models referred to `GrowthModels.MODEL_NAMES`,
+        # but `using ..GrowthModels: growth_rhs!, MODEL_NAMES` imports only the
+        # named symbols and does not bind the module, so the call raised
+        # UndefVarError. Not covered by any test until v0.2.1.
+        timevect = collect(1.0:30.0)
+        ydata = solve_incidence(:lm, 0.35, 1.0, 1.0, 3000.0, 5.0, timevect)
+
+        # These print a report; the assertion is simply that they run.
+        redirect_stdout(devnull) do
+            @test (screen_all_models(timevect, ydata); true)
+
+            out = screen_identifiability(:grm, timevect,
+                                         (r = 0.3, p = 0.9, a = 1.0, K = 3000.0, I0 = 5.0))
+            @test (print_identifiability_summary(out, "GRM"); true)
+        end
+    end
+
 end
