@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+title: >-
+  GrowthFit.jl: Phenomenological growth-model fitting, uncertainty
+  quantification, and short-term forecasting for epidemic incidence data
+message: If you use this software, please cite it using these metadata.
+type: software
+authors:
+  - given-names: Raj
+    family-names: Subedi
+    email: rajsubediresearch@gmail.com
+    # orcid: 'https://orcid.org/0000-0000-0000-0000'
+    # affiliation: >-
+    #   Department of Population Health Sciences, School of Public Health,
+    #   Georgia State University
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21696876
+    description: Concept DOI — always resolves to the latest release
+  - type: doi
+    value: 10.5281/zenodo.21696877
+    description: Version DOI for v0.1.0
+repository-code: 'https://github.com/rajsubediresearch/GrowthFit.jl'
+abstract: >-
+  A Julia toolbox for fitting seven nested phenomenological growth models
+  (Exponential Growth, Generalized Growth, Logistic, Generalized Logistic,
+  Richards, Generalized Richards, and Gompertz) to epidemic incidence data
+  by maximum likelihood under normal, Poisson, or negative-binomial (NB1)
+  error structures. Provides parametric-bootstrap uncertainty
+  quantification, short-term forecasting with prediction intervals,
+  performance metrics including MAE, MSE, 95% prediction-interval coverage
+  and the weighted interval score, and a local practical-identifiability
+  screen based on parameter collinearity. A Julia port of the corresponding
+  R and MATLAB toolboxes.
+keywords:
+  - epidemic forecasting
+  - infectious disease modeling
+  - phenomenological growth models
+  - parameter estimation
+  - uncertainty quantification
+  - practical identifiability
+  - Julia
+license: MIT
+version: 0.1.0
+doi: 10.5281/zenodo.21696876
+date-released: '2026-07-30'
