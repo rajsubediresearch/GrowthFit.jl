@@ -8,7 +8,24 @@ structures via a single `dist` argument.
 """
 module FitGrowthModel
 
-using DifferentialEquations
+# Only Tsit5 is used, so depend on that solver package directly rather than
+# on the DifferentialEquations meta-package. That pulled in every solver in
+# the stack (Rosenbrock, BDF, SDIRK, Verner, NonlinearSolve, LinearSolve,
+# MKL) for one explicit RK method, which cost roughly fifteen minutes of
+# precompilation on a cold install and exposed users to version conflicts
+# between sibling OrdinaryDiffEq packages that this package never touches.
+using OrdinaryDiffEqTsit5: Tsit5
+using SciMLBase: ODEProblem, solve
+# ForwardDiff must be LOADED, not merely declared as a dependency:
+# `AutoForwardDiff()` below is only a marker type from ADTypes, and
+# DifferentiationInterface supplies the actual implementation through a
+# package extension that activates when ForwardDiff is in the session.
+# This used to happen by accident, because `using DifferentialEquations`
+# pulled ForwardDiff in transitively. With the narrower solver dependency
+# it no longer does, and every solve fails with a MethodError on
+# `_prepare_pushforward_aux`. (Aqua's stale-deps check flags the same
+# problem from the other direction: a [deps] entry that is never imported.)
+import ForwardDiff
 using Optimization, OptimizationNLopt
 using SpecialFunctions: loggamma
 using Random
@@ -30,7 +47,7 @@ function solve_incidence(flag, r, p_exp, a, K, I0, timevect; reltol=1e-8, abstol
     tspan = (timevect[1], timevect[end])
     params = (flag, r, p_exp, a, K)
     # Promote the initial condition to match the parameter element type (Dual
-    # during AD, Float64 otherwise) so DifferentialEquations.jl's dual-number
+    # during AD, Float64 otherwise) so OrdinaryDiffEq's dual-number
     # propagation works correctly through the solve.
     T = typeof(r)
     u0 = T[max(I0, 0.01)]
