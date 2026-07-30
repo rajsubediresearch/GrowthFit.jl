@@ -1,7 +1,7 @@
 name = "GrowthFit"
 uuid = "3142d883-df95-4bd5-a657-caf749b3a4ac"
 authors = ["Raj Subedi <rajsubediresearch@gmail.com>"]
-version = "0.1.1"
+version = "0.2.0"
 
 [deps]
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -20,6 +20,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [compat]
 ADTypes = "1"
 Aqua = "0.8"
+DelimitedFiles = "1"
 Distributions = "0.25"
 ForwardDiff = "0.10, 1"
 LinearAlgebra = "1"
@@ -36,7 +37,8 @@ julia = "1.10"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "Test"]
+test = ["Aqua", "DelimitedFiles", "Test"]

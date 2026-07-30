@@ -2,6 +2,7 @@ using GrowthFit
 using Test
 using Random
 using Aqua
+using DelimitedFiles
 
 @testset "GrowthFit.jl" begin
 
@@ -90,39 +91,69 @@ using Aqua
         @test res.objective < 1e-3 * sum(abs2, ytrue)
     end
 
-    @testset "default multistart on wide K bounds (known weakness)" begin
-        # KNOWN ISSUE, noiseless data only. With the default Kmax_mult=1000,
-        # SLSQP returns its own starting point unchanged and reports
-        # Success. Two compounding causes, both confirmed:
+    @testset "wide K bounds on noiseless data (was broken pre-0.2.0)" begin
+        # HISTORY. With the default Kmax_mult=1000, SLSQP returned its own
+        # starting point unchanged and reported Success. Two compounding
+        # causes, both confirmed:
         #
-        #   1. Gradient scaling. At the warm start the gradient is
-        #      df/dr = -8.0e5 against df/dK = -0.14, a ratio of 5.7e6. The
-        #      first QP step is essentially pure r, clips at its upper
-        #      bound, and lands in the region where negloglik's plausibility
-        #      guard fires.
-        #   2. That guard returns a flat constant (1e10), so the line search
-        #      backtracks against a plateau with no gradient, exhausts its
-        #      budget, and stops where it started.
+        #   1. Gradient scaling. At the warm start df/dr = -8.0e5 against
+        #      df/dK = -0.14, a ratio of 5.7e6, so the first QP step is
+        #      essentially pure r, clips at its upper bound, and lands where
+        #      negloglik's plausibility guard fires.
+        #   2. That guard returned a flat constant, leaving the line search
+        #      no gradient to backtrack along.
         #
         # Verified NOT to be the cause: ForwardDiff is correct (gradients
         # agree with central differences to ~8 significant digits), and
-        # derivative-free COBYLA recovers r and K to ~1e-11 from the same
-        # start with the same bounds.
+        # log-space reparameterization made matters worse, as did narrowing
+        # Kmax_mult and adding restarts.
         #
-        # Uniform restarts do not rescue it: with Kmax_mult=1000 the true
-        # K sits in the bottom 0.1% of the sampled range.
-        #
-        # Real (noisy) fits are unaffected — the saved Jalisco GRM/NB1 fit
-        # recovers r=0.793, p=0.840, a=1.346, K=7341, nowhere near its warm
-        # start. Candidate fixes (log-space reparameterization of r/K/alpha,
-        # a smooth infeasibility penalty, retcode gating) are tracked
-        # separately and must be validated against the MATLAB reference
-        # before adoption.
+        # The v0.2.0 COBYLA polish fixes it. If this testset ever fails,
+        # something has regressed in the polish step rather than in the
+        # multistart.
         Random.seed!(20260726)
         timevect = collect(1.0:30.0)
         ytrue = solve_incidence(:lm, 0.35, 1.0, 1.0, 4000.0, 5.0, timevect)
         res = fit_growth_model(:lm, timevect, ytrue; dist = :normal, n_restarts = 8)
-        @test_broken isapprox(res.r, 0.35; rtol = 0.15)
+        @test isapprox(res.r, 0.35; rtol = 0.15)
+
+        # And confirm the polish is what does it.
+        Random.seed!(20260726)
+        res_np = fit_growth_model(:lm, timevect, ytrue;
+                                  dist = :normal, n_restarts = 8, polish = false)
+        @test res_np.objective >= res.objective
+    end
+
+    @testset "least-squares fit on real data (v0.2.0 regression)" begin
+        # Before the COBYLA polish, dist=:normal on this series produced
+        # SSE 783,855 — 5.8x worse than the reference MATLAB implementation
+        # (fmincon, 25-point MultiStart) on the identical problem, which
+        # reaches 135,363. The polish reaches 83,448, better than both.
+        path = joinpath(@__DIR__, "..", "examples", "data",
+                        "JALISCO_2025-08-18_2026-06-29-trimmed.txt")
+        if !isfile(path)
+            @info "Jalisco example data not found; skipping regression test."
+        else
+            data = readdlm(path, '\t', Float64)
+            tv, yd = data[1:40, 1], data[1:40, 2]
+
+            Random.seed!(1)
+            f = fit_growth_model(:grm, tv, yd; dist = :normal, n_restarts = 10)
+            sse = sum((yd .- f.fitcurve) .^ 2)
+
+            @test f.converged
+            @test isfinite(sse)
+            @test sse < 100_000        # was ~783,855 before v0.2.0
+
+            # NB1 is unaffected by the polish: SLSQP already reaches that
+            # optimum, so the extra pass must not move it.
+            Random.seed!(1)
+            g  = fit_growth_model(:grm, tv, yd; dist = :nb1, n_restarts = 10)
+            Random.seed!(1)
+            gn = fit_growth_model(:grm, tv, yd; dist = :nb1, n_restarts = 10, polish = false)
+            @test isapprox(g.objective, gn.objective; rtol = 1e-6)
+            @test isapprox(g.r, gn.r; rtol = 1e-4)
+        end
     end
 
     @testset "bootstrap" begin

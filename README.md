@@ -116,43 +116,57 @@ fit looks good.
 
 ## Known limitations
 
-**Least-squares (`dist = :normal`) fits are unreliable.** SLSQP can return
-its starting point unchanged, reporting `Success` while doing so, and the
-default multistart does not rescue it. On the bundled Jalisco measles
-example the package's own `:normal` fit reaches SSE 783,938, while a
-derivative-free optimizer finds SSE 83,440 from three independent starts —
-so the reported fit is roughly nine times worse than the optimum the same
-objective admits.
+**The identifiability screen is local.** See the caveat above — it describes
+the likelihood surface near your fit, not globally.
+
+**`fit_growth_model` has no `seed` argument.** Its random restarts draw from
+the global RNG, so call `Random.seed!` beforehand if you need the point
+estimate pinned to the last digit. The variation without that is at
+optimizer convergence tolerance (~1e-8). `run_bootstrap` does take a `seed`
+and is fully reproducible.
+
+**These are single-wave models.** Multi-wave epidemics, mid-outbreak
+interventions, and reporting artifacts all break the assumption that one
+growth curve describes the series.
+
+## Least-squares convergence (fixed in v0.2.0)
+
+Kept here because the diagnosis is worth not repeating.
+
+Through v0.1.1, `dist = :normal` fits were unreliable. SLSQP would return
+its starting point unchanged while reporting `Success`, and extra restarts
+did not help. On the bundled Jalisco measles example it reached SSE 783,855;
+the MATLAB implementation this toolbox is ported from reaches 135,363 on the
+same problem with a 25-point MultiStart search.
 
 The cause is SLSQP's line search failing when the gradient is large relative
-to the feasible region. At the point where the fit stalls, the scaled
-gradient components are of order 1e6 against an objective of order 1e5, so
-that point is nowhere near stationary — the optimizer simply cannot take a
-step. This is a genuine failure to converge, not a difference in what least
-squares prefers.
+to the feasible region. At the stall point the scaled gradient components
+are of order 1e6 against an objective of order 1e5 — nowhere near
+stationary. The optimizer simply cannot take a step.
 
-Ruled out by testing: automatic differentiation is correct (ForwardDiff
-gradients agree with central differences to ~8 significant digits);
-restart sampling is not the cause (narrowing `Kmax_mult` to 2.0 with 50
-restarts makes the fit *worse*); and log-space reparameterization of `r` and
-`K` also makes it worse. Derivative-free optimization recovers a good
-optimum in every case tested.
+Ruled out by testing, each of which made matters *worse* rather than better:
+log-space reparameterization of `r` and `K`; narrowing `Kmax_mult`; adding
+restarts. Automatic differentiation was never implicated — ForwardDiff
+gradients agree with central differences to ~8 significant digits.
 
-**Poisson and NB1 fits are unaffected**, and this has been verified rather
-than assumed: a derivative-free optimizer started from the fitted NB1
-optimum on the Jalisco data returns the identical point to four significant
-figures. Their log-scale objectives are far better conditioned across `r`
-and `K`. If you are fitting count data, `:nb1` is the appropriate default
-anyway.
+v0.2.0 polishes the search result with a derivative-free COBYLA pass, from
+both the best SLSQP point and the warm start, keeping the lowest objective.
+Polishing from the SLSQP point alone is not sufficient: COBYLA is a local
+method and cannot cross basins, which gets SSE only to 125,037. With both
+starts it reaches 83,440 — better than either previous implementation.
+Pass `polish = false` to recover the earlier behaviour.
 
-A related failure appears on noiseless synthetic data with the default wide
-bounds on `K`, and is tracked as a `@test_broken` case in
-`test/runtests.jl`.
+Poisson and negative-binomial fits were never affected and are unchanged:
+their log-scale objectives are far better conditioned across `r` and `K`.
+This is asserted in the test suite rather than assumed — a fit with and
+without polish must agree.
 
-**Planned fix (v0.2.0):** polish the SLSQP result with a derivative-free
-COBYLA pass and keep whichever objective is lower. This is a no-op wherever
-SLSQP already reaches the optimum, and costs under 10% of fit time.
-
+One substantive point falls out of this. Under least squares the residuals
+near the peak dominate, so the fit drives `p` to 1 (no sub-exponential
+deceleration). Under NB1 the relative errors matter, so the early low-count
+weeks pull `p` down to ~0.84. The error structure decides which part of the
+curve the fit prioritizes, and `p` is the parameter most sensitive to that
+choice — another reason `:nb1` is the appropriate default for count data.
 ## Citation
 
 If you use this package, please cite it via its DOI:
