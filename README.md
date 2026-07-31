@@ -19,6 +19,36 @@ using Pkg
 Pkg.add("GrowthFit")
 ```
 
+### Install into a project, not your default environment
+
+Worth doing even for a quick look:
+
+```julia
+using Pkg
+Pkg.activate("my_analysis")     # a folder for this piece of work
+Pkg.add("GrowthFit")
+```
+
+Julia's default environment is shared by everything you have ever installed,
+so the resolver has to satisfy all of it at once. Adding a package there can
+pin a dependency to an older version to keep something unrelated happy, and
+you get a version combination nobody tested. A real example: on Google
+Colab's Julia runtime, whose default environment ships several packages
+pre-installed, GrowthFit resolved to a pair of solver sub-packages that were
+mutually incompatible and failed to precompile — nothing to do with this
+package, but the shared environment is what made it possible.
+
+A project directory gives the resolver a clean problem. It also produces a
+`Manifest.toml` recording the exact versions used, which is what makes an
+analysis reproducible months later.
+
+If you do hit a resolution failure, a scratch environment isolates it:
+
+```julia
+Pkg.activate(mktempdir())
+Pkg.add("GrowthFit")
+```
+
 ## Models
 
 Seven nested phenomenological growth models, fitted to cumulative incidence

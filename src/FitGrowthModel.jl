@@ -29,6 +29,7 @@ import ForwardDiff
 using Optimization, OptimizationNLopt
 using SpecialFunctions: loggamma
 using Random
+using Logging: with_logger, NullLogger
 using ADTypes: AutoForwardDiff
 
 using ..GrowthModels: growth_rhs!, MODEL_NPARAMS
@@ -52,8 +53,23 @@ function solve_incidence(flag, r, p_exp, a, K, I0, timevect; reltol=1e-8, abstol
     T = typeof(r)
     u0 = T[max(I0, 0.01)]
     prob = ODEProblem(growth_rhs!, u0, tspan, params)
+    # The optimizer routinely probes parameter regions where the solve fails,
+    # and OrdinaryDiffEq emits a `dt_NaN` warning each time. That is expected
+    # -- the failure is detected below and the objective treats the point as
+    # infeasible -- but a single fit can produce hundreds of warnings, and a
+    # 300-replicate bootstrap tens of thousands, which buries any real output.
+    #
+    # `verbose=false` no longer works: OrdinaryDiffEq v7 rejects a Bool and
+    # wants `SciMLLogging.None()`, which would mean taking on another direct
+    # dependency for one keyword. NullLogger is in the Logging stdlib, costs
+    # nothing to install, and is scoped to this call -- so warnings raised by
+    # this package elsewhere (notably `fit_growth_model`'s "no start
+    # converged") still reach the user. Measured overhead is ~6% on a trivial
+    # solve and less on a realistic one.
     sol = try
-        solve(prob, Tsit5(); saveat=timevect, reltol=reltol, abstol=abstol)
+        with_logger(NullLogger()) do
+            solve(prob, Tsit5(); saveat=timevect, reltol=reltol, abstol=abstol)
+        end
     catch e
         @debug "solve_incidence: ODE solve threw" exception=(e, catch_backtrace())
         return nothing

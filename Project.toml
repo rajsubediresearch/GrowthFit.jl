@@ -1,13 +1,14 @@
 name = "GrowthFit"
 uuid = "3142d883-df95-4bd5-a657-caf749b3a4ac"
 authors = ["Raj Subedi <rajsubediresearch@gmail.com>"]
-version = "0.2.1"
+version = "0.2.2"
 
 [deps]
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationNLopt = "4e6fcdb7-1186-4e1f-a706-475e75c168bb"
 OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
@@ -24,6 +25,7 @@ DelimitedFiles = "1"
 Distributions = "0.25"
 ForwardDiff = "0.10, 1"
 LinearAlgebra = "1"
+Logging = "1"
 Optimization = "5"
 OptimizationNLopt = "0.3"
 OrdinaryDiffEqTsit5 = "2"
