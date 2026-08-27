@@ -17,10 +17,19 @@ error.
 Make a folder for your analysis, open a terminal **in that folder**, and start
 Julia with the current directory as its project:
 
-```bash
+```
 cd path/to/my_analysis
 julia --project=.
 ```
+
+Any terminal works — Terminal on macOS, bash or zsh on Linux, Command Prompt
+or PowerShell on Windows. Two Windows notes: use backslashes in paths
+(`cd E:\Julia\my_analysis`), and in Command Prompt you must switch drive
+first by typing the drive letter on its own line (`E:`) before `cd`.
+
+If `julia` is not recognised, it is not on your PATH. The
+[juliaup installer](https://julialang.org/install/) sets this up; restart the
+terminal after installing.
 
 Then, at the `julia>` prompt:
 
@@ -120,26 +129,56 @@ plt = plot_fit_and_forecast(boot, timevect, ydata, ydata_all, timevect_all;
 savefig(plt, "fit_forecast.png")
 ```
 
-The bootstrap is multithreaded. Start Julia with `-t 8` (or whatever your
-machine has) to use it:
+The bootstrap is multithreaded. Start Julia with `-t 8` (or however many
+cores you have) to use it — `julia --project=. -t 8`. Results are identical
+however many threads you use; see Reproducibility below.
 
-```bash
-julia --project=. -t 8 my_analysis.jl
-```
-
-Results are identical however many threads you use — see Reproducibility
-below.
-
-### Worked example
+### Running the worked example
 
 [`examples/run_example.jl`](examples/run_example.jl) fits, bootstraps,
 forecasts and scores a real measles series, writing plots and CSVs to
-`output/`. From a clone of this repository:
+`output/`. It is the fastest way to see what the package does end to end.
 
-```bash
-julia --project=examples -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
-julia --project=examples -t 8 examples/run_example.jl
+**1. Get the repository.** Either clone it:
+
 ```
+git clone https://github.com/rajsubediresearch/GrowthFit.jl.git
+cd GrowthFit.jl
+```
+
+or download the ZIP from the green **Code** button on GitHub, extract it, and
+`cd` into the extracted folder.
+
+**2. Start Julia from inside that folder**, using the examples environment.
+The `-t 8` gives the bootstrap eight threads; use a number no higher than
+your core count, or leave it off entirely.
+
+```
+julia --project=examples -t 8
+```
+
+**3. At the `julia>` prompt**, install the dependencies and run it:
+
+```julia
+using Pkg
+Pkg.develop(path = ".")     # use the GrowthFit source in this clone
+Pkg.instantiate()           # install what the example needs
+
+include("examples/run_example.jl")
+```
+
+The first `instantiate` downloads and compiles the dependencies, which takes
+a few minutes. After that, starting up takes seconds.
+
+Everything from step 3 onward happens at the Julia prompt, so it is identical
+on every operating system and shell.
+
+**4. Look at `output/`** for the fit and forecast plot, parameter estimates
+with confidence intervals, performance metrics, and the saved fit object.
+
+To change the model, error structure, dataset or forecast horizon, edit the
+variables at the top of `examples/run_example.jl` and re-run step 3's
+`include` line — no need to restart Julia.
 
 ## Reproducibility
 
