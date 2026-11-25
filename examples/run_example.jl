@@ -184,12 +184,16 @@ else
     println("Forecast performance not computed (forecast_horizon=0 or insufficient held-out data).")
 end
 
-# AICc (MLE formula, matching getAICc()'s method!=0 branch in the R/MATLAB
-# toolboxes: AICc = -2*logL + 2*k + 2k(k+1)/(n-k-1), logL = -objective here
-# since point_fit.objective is already the NLL)
+# AICc via compute_aicc, which uses the right likelihood for each error
+# structure: n*log(SSE/n) under :normal, the negative log-likelihood under
+# :poisson/:nb1. Through v0.2.2 this script applied the NLL form
+# unconditionally, which is wrong under :normal, where point_fit.objective is
+# the sum of squared errors rather than an NLL. Poisson and NB1 values are
+# unchanged.
 n_obs = length(ydata)
-n_params = GrowthModels.MODEL_NPARAMS[flag] + (dist == :nb1 ? 1 : 0)  # +1 for alpha under NB1
-aicc = 2 * point_fit.objective + 2 * n_params + (2 * n_params * (n_params + 1)) / (n_obs - n_params - 1)
+# +1 for alpha under NB1, or for the residual variance under normal
+n_params = GrowthModels.MODEL_NPARAMS[flag] + (dist == :poisson ? 0 : 1)
+aicc = compute_aicc(point_fit, dist; n_obs = n_obs)
 aicc_df = DataFrame(model = [model_str], dist = [string(dist)], AICc = [aicc],
                     numparams = [n_params], nll = [point_fit.objective])
 aicc_path = joinpath("output", "$(run_tag)_AICc.csv")

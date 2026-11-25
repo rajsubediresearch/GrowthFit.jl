@@ -180,6 +180,58 @@ To change the model, error structure, dataset or forecast horizon, edit the
 variables at the top of `examples/run_example.jl` and re-run step 3's
 `include` line — no need to restart Julia.
 
+## Rolling-window analysis
+
+A single fit to the whole series tells you how well a model describes an
+epidemic after the fact. A rolling-window run tells you how it would have
+performed had you run it week after week as the data arrived: each window is
+fitted independently, with its own initial condition and bootstrap, and its
+forecast is scored against the weeks that followed.
+
+```julia
+rw = rolling_windows(:rich, timevect, ydata;
+                     windowsize = 20, forecast_horizon = 4,
+                     dist = :nb1, M = 300, seed = 2026)
+
+rw                           # summary
+rw[5].fit.r                  # one window's fit; rw iterates over windows
+parameter_trajectory(rw)     # r, p, a, K, alpha with 95% intervals, per window
+skill_trajectory(rw)         # AICc, calibration and forecast metrics, per window
+forecast_skill_by_step(rw)   # one row per window × forecast step
+```
+
+Window `i` covers observations `i : i+windowsize-1`. By default every window
+that fits is run; pass `windows = 1:3` (or any vector of indices) for a
+subset. Late windows score only the forecast steps that were actually
+observed, and a window ending at the last observation is left unscored.
+
+The three accessors return column tables, so they go straight into
+`DataFrame(...)` or `CSV.write(...)` if you use those packages. The package
+writes no files itself.
+
+**Cost.** A run is one full fit plus bootstrap per window. On the bundled
+Jalisco series (41 weeks, `windowsize = 20`, so 22 windows) that is about
+8 seconds per window at `M = 50` on 8 threads. Start with `M = 50` and
+`windows = 1:3` to estimate the cost before a full run.
+
+**Comparing models.** Run `rolling_windows` once per model with the same
+`seed` and compare window by window. Two cautions, both visible on Jalisco:
+
+- AICc compares models fitted to the *same* window, never one window with
+  another, since each window is different data. Before the peak it also
+  cannot separate the saturating models: with no turnover in the data, `K`
+  is unidentified and GLM and GRM collapse onto GGM, so AICc favours GGM
+  until a post-peak week enters the window.
+- Fitting a window well says little about forecasting from it. On Jalisco
+  GGM covered 92% of each window's own observations but 6% of the following
+  weeks, because it has no saturation term and cannot turn at the peak.
+  Compare models on forecast skill (`WIS_fc`, `Coverage95PI_fc`).
+
+Under `:poisson` and `:nb1`, `compute_aicc` values are large and negative.
+That is expected: the likelihood omits a data-only `log(y!)` term, as the
+R/MATLAB toolboxes do, which shifts every model on the same data equally and
+leaves rankings unchanged.
+
 ## Reproducibility
 
 `run_bootstrap` derives one random stream per replicate index from a single
@@ -193,12 +245,23 @@ global RNG, so call `Random.seed!` before it if you need the point estimate
 pinned to the last digit. The run-to-run variation is at optimizer
 convergence tolerance (~1e-8), not at any scientifically meaningful scale.
 
+`rolling_windows` derives each window's streams, for both the restarts and
+the bootstrap, from the master `seed` and the window index. A window is
+therefore identical whether it was run alone or as part of a larger set, so
+one suspicious window can be re-run and reproduced exactly. The master seed
+actually used is stored in `rw.seed`.
+
 ## API
 
 **Fitting** — `fit_growth_model`, `solve_incidence`, `negloglik`, `FitResult`
 
 **Uncertainty** — `run_bootstrap`, `simulate_noisy_curve`, `BootstrapResult`,
 `compute_calibration_performance`, `compute_forecast_performance`
+
+**Rolling windows** — `rolling_windows`, `RollingWindowResult`, `WindowFit`,
+`parameter_trajectory`, `skill_trajectory`, `forecast_skill_by_step`
+
+**Model comparison** — `compute_aicc`
 
 **Identifiability** — `screen_identifiability`, `screen_all_models`,
 `print_identifiability_summary`
