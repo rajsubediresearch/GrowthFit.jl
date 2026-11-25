@@ -69,6 +69,13 @@ same quantity under every error structure:
     `:nb1`** -- only differences within one error structure and one `n` mean
     anything, which is all AICc is for.
 
+Under `:poisson` and `:nb1` the values are typically large and negative.
+That is expected, not a bug: `negloglik` omits the `sum(log(y!))` term,
+which depends only on the data, as the R/MATLAB toolboxes do. It shifts
+every model's AICc on the same data by the same amount, so model rankings
+and AICc differences are unaffected -- but the absolute number is not a
+textbook AICc and should not be compared with one computed elsewhere.
+
 Returns `Inf` for a non-converged fit, and for a window too short to apply
 the correction at all (`n <= k + 1`), so a model that cannot be scored
 sorts last rather than silently winning.
@@ -120,8 +127,10 @@ One window of a rolling-window run.
   * `t_start`, `t_end` -- the first and last time value in the window.
   * `fit` -- the `FitResult` for this window alone.
   * `boot` -- the `BootstrapResult` for this window alone.
-  * `aicc` -- `compute_aicc(fit, dist)`, so comparable across windows of
-    equal length.
+  * `aicc` -- `compute_aicc(fit, dist)`. For comparing *models* fitted to
+    this same window (run `rolling_windows` once per model and compare
+    window by window). Not comparable *across* windows: each window is
+    different data, and AICc only ranks models on identical data.
   * `calibration` -- `compute_calibration_performance` on the window's own
     observations: how well the model describes the data it was fitted to.
   * `forecast` -- per-horizon-step forecast metrics, or `nothing` when the
@@ -200,13 +209,6 @@ function Base.show(io::IO, ::MIME"text/plain", rw::RollingWindowResult)
             rw.windows[end].t_end)
     println(io, "  forecast horizon ", rw.forecast_horizon, ", M = ", rw.M,
             " bootstrap replicates, seed = ", rw.seed)
-
-    aiccs = [w.aicc for w in rw.windows]
-    if any(isfinite, aiccs)
-        imin = argmin(aiccs)
-        println(io, "  AICc  min ", round(aiccs[imin]; digits = 1),
-                " (window ", rw.windows[imin].window, ")")
-    end
 
     cal_wis = [w.calibration.WIS for w in rw.windows]
     print(io, "  WIS   calibration mean ",
